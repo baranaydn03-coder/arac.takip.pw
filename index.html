@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Araç Takip - Muayene / Sigorta / Seyrüsefer</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b5fff">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fb;margin:0;padding:0;color:#1f2937}
+header{background:#0b5fff;color:#fff;padding:14px;text-align:center}
+.container{max-width:800px;margin:20px auto;background:#fff;padding:18px;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}
+input,button{padding:8px;margin:5px;border-radius:5px;border:1px solid #ccc}
+button{background:#0b5fff;color:#fff;border:none;cursor:pointer}
+.ok{color:green}.soon{color:orange}.expired{color:red}
+</style>
+</head>
+<body>
+<header><h1>Araç Takip</h1></header>
+<div class="container">
+  <p>Muayene, sigorta ve seyrüsefer tarihlerini takip et.</p>
+  <form id="form">
+    <input id="plate" placeholder="Plaka" required>
+    <label>Muayene bitiş:</label><input id="muayene" type="date">
+    <label>Sigorta bitiş:</label><input id="sigorta" type="date">
+    <label>Seyrüsefer bitiş:</label><input id="seyrus" type="date">
+    <button type="submit">Kaydet</button>
+  </form>
+  <table id="table" border="1" width="100%" style="margin-top:10px;border-collapse:collapse">
+    <thead><tr><th>Plaka</th><th>Muayene</th><th>Sigorta</th><th>Seyrüsefer</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+<script>
+const form=document.getElementById('form');
+const tbody=document.querySelector('tbody');
+let data=JSON.parse(localStorage.getItem('vehicles')||'[]');
+function render(){
+ tbody.innerHTML='';
+ const today=new Date();
+ data.forEach(v=>{
+   const tr=document.createElement('tr');
+   function cell(label,date){
+     if(!date) return '<td>-</td>';
+     const d=new Date(date);
+     const diff=Math.ceil((d-today)/(1000*60*60*24));
+     let cls='ok';let txt=diff+' gün kaldı';
+     if(diff<0){cls='expired';txt=Math.abs(diff)+' gün geçti';}
+     else if(diff<30){cls='soon';}
+     return `<td class="${cls}">${date}<br><small>${txt}</small></td>`;
+   }
+   tr.innerHTML=`<td>${v.plate}</td>${cell('M',v.muayene)}${cell('S',v.sigorta)}${cell('SR',v.seyrus)}`;
+   tbody.appendChild(tr);
+ });
+}
+form.onsubmit=e=>{
+ e.preventDefault();
+ const plate=form.plate.value.trim();
+ if(!plate)return;
+ const v={plate,muayene:form.muayene.value,sigorta:form.sigorta.value,seyrus:form.seyrus.value};
+ const idx=data.findIndex(x=>x.plate==plate);
+ if(idx>-1)data[idx]=v;else data.push(v);
+ localStorage.setItem('vehicles',JSON.stringify(data));
+ render();form.reset();
+};
+render();
+if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}
+</script>
+</body></html>
