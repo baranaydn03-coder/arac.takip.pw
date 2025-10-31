@@ -1,607 +1,134 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Araç Takip</title>
-  <link rel="manifest" href="manifest.json" />
+  <link rel="manifest" href="manifest.json">
   <script>
-    // Sayfa yüklendiğinde kayıtlı verileri getir
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+      .then(() => console.log('Service Worker kayıtlı'))
+      .catch(err => console.log('Service Worker hatası:', err));
+    }
+
+    function izinIste() {
+      if ('Notification' in window && Notification.permission !== 'granted') {
+        Notification.requestPermission().then(permission => {
+          console.log('İzin durumu:', permission);
+        });
+      }
+    }
+
     window.onload = () => {
-      const fields = ['muayene','sigorta','reysusefer','seyrusefer'];
-      // support older key typo and correct one
-      const pick = ['muayene','sigorta','seyrusefer'];
-      pick.forEach(field => {
+      izinIste();
+      ['muayene','sigorta','seyrusefer'].forEach(field => {
         const value = localStorage.getItem(field);
-        if (value && document.getElementById(field)) document.getElementById(field).value = value;
+        if (value) document.getElementById(field).value = value;
       });
       hesapla();
     };
 
-    // Tarih değiştiğinde veriyi kaydet
     function kaydet() {
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const value = el ? el.value : '';
+      ['muayene','sigorta','seyrusefer'].forEach(field => {
+        const value = document.getElementById(field).value;
         localStorage.setItem(field, value);
       });
       alert("Bilgiler kaydedildi ✅");
       hesapla();
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage('kontrolEt');
+      }
     }
 
-    // Kalan günleri hesapla
+    function temizle(field) {
+      localStorage.removeItem(field);
+      document.getElementById(field).value = '';
+      document.getElementById(field + '_kalan').textContent = '';
+      alert(field + " silindi ✅");
+    }
+
     function hesapla() {
       const bugun = new Date();
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
+      ['muayene','sigorta','seyrusefer'].forEach(field => {
         const el = document.getElementById(field);
         const span = document.getElementById(field + '_kalan');
         if (!el || !span) return;
         if (!el.value) { span.textContent = ''; return; }
         const tarih = new Date(el.value + 'T00:00:00');
-        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000 * 60 * 60 * 24));
+        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000*60*60*24));
         span.textContent = diff > 0 ? ${diff} gün kaldı : SÜRESİ DOLDU ⛔;
       });
     }
   </script>
   <style>
-    body{font-family:Arial,Helvetica,sans-serif;padding:18px;background:#f5f7fb;color:#111}
-    .card{max-width:640px;margin:12px auto;background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    label{font-weight:600}
-    input{padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:6px;width:100%}
-    button{margin-top:12px;padding:10px 14px;background:#0b5fff;color:#fff;border:none;border-radius:8px;cursor:pointer}
-    .small{font-size:13px;color:#555;margin-top:6px}
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f7fb;
+      color: #111;
+    }
+    .card {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+    }
+    label {
+      font-weight: 600;
+      margin-top: 10px;
+      display: block;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 6px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    button {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      padding: 14px;
+      font-size: 16px;
+      background: #0b5fff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:active {
+      background: #0945c1;
+    }
+    .small {
+      font-size: 13px;
+      color: #555;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>🚗 Araç Takip</h1>
-    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Veriler telefonda saklanır.</p>
+    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Bildirim alabilirsin.</p>
 
     <label for="muayene">Muayene Tarihi</label>
-    <input type="date" id="muayene" onchange="hesapla()" />
+    <input type="date" id="muayene" onchange="hesapla()">
     <div id="muayene_kalan" class="small"></div>
+    <button onclick="temizle('muayene')">🗑️ Muayeneyi Sil</button>
 
-    <label for="sigorta" style="margin-top:10px">Sigorta Tarihi</label>
-    <input type="date" id="sigorta" onchange="hesapla()" />
+    <label for="sigorta">Sigorta Tarihi</label>
+    <input type="date" id="sigorta" onchange="hesapla()">
     <div id="sigorta_kalan" class="small"></div>
+    <button onclick="temizle('sigorta')">🗑️ Sigortayı Sil</button>
 
-    <label for="seyrusefer" style="margin-top:10px">Seyrüsefer Tarihi</label>
-    <input type="date" id="seyrusefer" onchange="hesapla()" />
+    <label for="seyrusefer">Seyrüsefer Tarihi</label>
+    <input type="date" id="seyrusefer" onchange="hesapla()">
     <div id="seyrusefer_kalan" class="small"></div>
-
-    <button onclick="kaydet()">💾 Kaydet</button>
-  </div>
-</body>
-</html><!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Araç Takip</title>
-  <link rel="manifest" href="manifest.json" />
-  <script>
-    // Sayfa yüklendiğinde kayıtlı verileri getir
-    window.onload = () => {
-      const fields = ['muayene','sigorta','reysusefer','seyrusefer'];
-      // support older key typo and correct one
-      const pick = ['muayene','sigorta','seyrusefer'];
-      pick.forEach(field => {
-        const value = localStorage.getItem(field);
-        if (value && document.getElementById(field)) document.getElementById(field).value = value;
-      });
-      hesapla();
-    };
-
-    // Tarih değiştiğinde veriyi kaydet
-    function kaydet() {
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const value = el ? el.value : '';
-        localStorage.setItem(field, value);
-      });
-      alert("Bilgiler kaydedildi ✅");
-      hesapla();
-    }
-
-    // Kalan günleri hesapla
-    function hesapla() {
-      const bugun = new Date();
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const span = document.getElementById(field + '_kalan');
-        if (!el || !span) return;
-        if (!el.value) { span.textContent = ''; return; }
-        const tarih = new Date(el.value + 'T00:00:00');
-        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000 * 60 * 60 * 24));
-        span.textContent = diff > 0 ? ${diff} gün kaldı : SÜRESİ DOLDU ⛔;
-      });
-    }
-  </script>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;padding:18px;background:#f5f7fb;color:#111}
-    .card{max-width:640px;margin:12px auto;background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    label{font-weight:600}
-    input{padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:6px;width:100%}
-    button{margin-top:12px;padding:10px 14px;background:#0b5fff;color:#fff;border:none;border-radius:8px;cursor:pointer}
-    .small{font-size:13px;color:#555;margin-top:6px}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>🚗 Araç Takip</h1>
-    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Veriler telefonda saklanır.</p>
-
-    <label for="muayene">Muayene Tarihi</label>
-    <input type="date" id="muayene" onchange="hesapla()" />
-    <div id="muayene_kalan" class="small"></div>
-
-    <label for="sigorta" style="margin-top:10px">Sigorta Tarihi</label>
-    <input type="date" id="sigorta" onchange="hesapla()" />
-    <div id="sigorta_kalan" class="small"></div>
-
-    <label for="seyrusefer" style="margin-top:10px">Seyrüsefer Tarihi</label>
-    <input type="date" id="seyrusefer" onchange="hesapla()" />
-    <div id="seyrusefer_kalan" class="small"></div>
-
-    <button onclick="kaydet()">💾 Kaydet</button>
-  </div>
-</body>
-</html><!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Araç Takip</title>
-  <link rel="manifest" href="manifest.json" />
-  <script>
-    // Sayfa yüklendiğinde kayıtlı verileri getir
-    window.onload = () => {
-      const fields = ['muayene','sigorta','reysusefer','seyrusefer'];
-      // support older key typo and correct one
-      const pick = ['muayene','sigorta','seyrusefer'];
-      pick.forEach(field => {
-        const value = localStorage.getItem(field);
-        if (value && document.getElementById(field)) document.getElementById(field).value = value;
-      });
-      hesapla();
-    };
-
-    // Tarih değiştiğinde veriyi kaydet
-    function kaydet() {
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const value = el ? el.value : '';
-        localStorage.setItem(field, value);
-      });
-      alert("Bilgiler kaydedildi ✅");
-      hesapla();
-    }
-
-    // Kalan günleri hesapla
-    function hesapla() {
-      const bugun = new Date();
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const span = document.getElementById(field + '_kalan');
-        if (!el || !span) return;
-        if (!el.value) { span.textContent = ''; return; }
-        const tarih = new Date(el.value + 'T00:00:00');
-        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000 * 60 * 60 * 24));
-        span.textContent = diff > 0 ? ${diff} gün kaldı : SÜRESİ DOLDU ⛔;
-      });
-    }
-  </script>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;padding:18px;background:#f5f7fb;color:#111}
-    .card{max-width:640px;margin:12px auto;background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    label{font-weight:600}
-    input{padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:6px;width:100%}
-    button{margin-top:12px;padding:10px 14px;background:#0b5fff;color:#fff;border:none;border-radius:8px;cursor:pointer}
-    .small{font-size:13px;color:#555;margin-top:6px}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>🚗 Araç Takip</h1>
-    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Veriler telefonda saklanır.</p>
-
-    <label for="muayene">Muayene Tarihi</label>
-    <input type="date" id="muayene" onchange="hesapla()" />
-    <div id="muayene_kalan" class="small"></div>
-
-    <label for="sigorta" style="margin-top:10px">Sigorta Tarihi</label>
-    <input type="date" id="sigorta" onchange="hesapla()" />
-    <div id="sigorta_kalan" class="small"></div>
-
-    <label for="seyrusefer" style="margin-top:10px">Seyrüsefer Tarihi</label>
-    <input type="date" id="seyrusefer" onchange="hesapla()" />
-    <div id="seyrusefer_kalan" class="small"></div>
-
-    <button onclick="kaydet()">💾 Kaydet</button>
-  </div>
-</body>
-</html><!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Araç Takip</title>
-  <link rel="manifest" href="manifest.json" />
-  <script>
-    // Sayfa yüklendiğinde kayıtlı verileri getir
-    window.onload = () => {
-      const fields = ['muayene','sigorta','reysusefer','seyrusefer'];
-      // support older key typo and correct one
-      const pick = ['muayene','sigorta','seyrusefer'];
-      pick.forEach(field => {
-        const value = localStorage.getItem(field);
-        if (value && document.getElementById(field)) document.getElementById(field).value = value;
-      });
-      hesapla();
-    };
-
-    // Tarih değiştiğinde veriyi kaydet
-    function kaydet() {
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const value = el ? el.value : '';
-        localStorage.setItem(field, value);
-      });
-      alert("Bilgiler kaydedildi ✅");
-      hesapla();
-    }
-
-    // Kalan günleri hesapla
-    function hesapla() {
-      const bugun = new Date();
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const span = document.getElementById(field + '_kalan');
-        if (!el || !span) return;
-        if (!el.value) { span.textContent = ''; return; }
-        const tarih = new Date(el.value + 'T00:00:00');
-        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000 * 60 * 60 * 24));
-        span.textContent = diff > 0 ? ${diff} gün kaldı : SÜRESİ DOLDU ⛔;
-      });
-    }
-  </script>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;padding:18px;background:#f5f7fb;color:#111}
-    .card{max-width:640px;margin:12px auto;background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    label{font-weight:600}
-    input{padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:6px;width:100%}
-    button{margin-top:12px;padding:10px 14px;background:#0b5fff;color:#fff;border:none;border-radius:8px;cursor:pointer}
-    .small{font-size:13px;color:#555;margin-top:6px}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>🚗 Araç Takip</h1>
-    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Veriler telefonda saklanır.</p>
-
-    <label for="muayene">Muayene Tarihi</label>
-    <input type="date" id="muayene" onchange="hesapla()" />
-    <div id="muayene_kalan" class="small"></div>
-
-    <label for="sigorta" style="margin-top:10px">Sigorta Tarihi</label>
-    <input type="date" id="sigorta" onchange="hesapla()" />
-    <div id="sigorta_kalan" class="small"></div>
-
-    <label for="seyrusefer" style="margin-top:10px">Seyrüsefer Tarihi</label>
-    <input type="date" id="seyrusefer" onchange="hesapla()" />
-    <div id="seyrusefer_kalan" class="small"></div>
-
-    <button onclick="kaydet()">💾 Kaydet</button>
-  </div>
-</body>
-</html><!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Araç Takip</title>
-  <link rel="manifest" href="manifest.json" />
-  <script>
-    // Sayfa yüklendiğinde kayıtlı verileri getir
-    window.onload = () => {
-      const fields = ['muayene','sigorta','reysusefer','seyrusefer'];
-      // support older key typo and correct one
-      const pick = ['muayene','sigorta','seyrusefer'];
-      pick.forEach(field => {
-        const value = localStorage.getItem(field);
-        if (value && document.getElementById(field)) document.getElementById(field).value = value;
-      });
-      hesapla();
-    };
-
-    // Tarih değiştiğinde veriyi kaydet
-    function kaydet() {
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const value = el ? el.value : '';
-        localStorage.setItem(field, value);
-      });
-      alert("Bilgiler kaydedildi ✅");
-      hesapla();
-    }
-
-    // Kalan günleri hesapla
-    function hesapla() {
-      const bugun = new Date();
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const span = document.getElementById(field + '_kalan');
-        if (!el || !span) return;
-        if (!el.value) { span.textContent = ''; return; }
-        const tarih = new Date(el.value + 'T00:00:00');
-        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000 * 60 * 60 * 24));
-        span.textContent = diff > 0 ? ${diff} gün kaldı : SÜRESİ DOLDU ⛔;
-      });
-    }
-  </script>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;padding:18px;background:#f5f7fb;color:#111}
-    .card{max-width:640px;margin:12px auto;background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    label{font-weight:600}
-    input{padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:6px;width:100%}
-    button{margin-top:12px;padding:10px 14px;background:#0b5fff;color:#fff;border:none;border-radius:8px;cursor:pointer}
-    .small{font-size:13px;color:#555;margin-top:6px}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>🚗 Araç Takip</h1>
-    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Veriler telefonda saklanır.</p>
-
-    <label for="muayene">Muayene Tarihi</label>
-    <input type="date" id="muayene" onchange="hesapla()" />
-    <div id="muayene_kalan" class="small"></div>
-
-    <label for="sigorta" style="margin-top:10px">Sigorta Tarihi</label>
-    <input type="date" id="sigorta" onchange="hesapla()" />
-    <div id="sigorta_kalan" class="small"></div>
-
-    <label for="seyrusefer" style="margin-top:10px">Seyrüsefer Tarihi</label>
-    <input type="date" id="seyrusefer" onchange="hesapla()" />
-    <div id="seyrusefer_kalan" class="small"></div>
-
-    <button onclick="kaydet()">💾 Kaydet</button>
-  </div>
-</body>
-</html><!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Araç Takip</title>
-  <link rel="manifest" href="manifest.json" />
-  <script>
-    // Sayfa yüklendiğinde kayıtlı verileri getir
-    window.onload = () => {
-      const fields = ['muayene','sigorta','reysusefer','seyrusefer'];
-      // support older key typo and correct one
-      const pick = ['muayene','sigorta','seyrusefer'];
-      pick.forEach(field => {
-        const value = localStorage.getItem(field);
-        if (value && document.getElementById(field)) document.getElementById(field).value = value;
-      });
-      hesapla();
-    };
-
-    // Tarih değiştiğinde veriyi kaydet
-    function kaydet() {
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const value = el ? el.value : '';
-        localStorage.setItem(field, value);
-      });
-      alert("Bilgiler kaydedildi ✅");
-      hesapla();
-    }
-
-    // Kalan günleri hesapla
-    function hesapla() {
-      const bugun = new Date();
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const span = document.getElementById(field + '_kalan');
-        if (!el || !span) return;
-        if (!el.value) { span.textContent = ''; return; }
-        const tarih = new Date(el.value + 'T00:00:00');
-        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000 * 60 * 60 * 24));
-        span.textContent = diff > 0 ? ${diff} gün kaldı : SÜRESİ DOLDU ⛔;
-      });
-    }
-  </script>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;padding:18px;background:#f5f7fb;color:#111}
-    .card{max-width:640px;margin:12px auto;background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    label{font-weight:600}
-    input{padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:6px;width:100%}
-    button{margin-top:12px;padding:10px 14px;background:#0b5fff;color:#fff;border:none;border-radius:8px;cursor:pointer}
-    .small{font-size:13px;color:#555;margin-top:6px}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>🚗 Araç Takip</h1>
-    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Veriler telefonda saklanır.</p>
-
-    <label for="muayene">Muayene Tarihi</label>
-    <input type="date" id="muayene" onchange="hesapla()" />
-    <div id="muayene_kalan" class="small"></div>
-
-    <label for="sigorta" style="margin-top:10px">Sigorta Tarihi</label>
-    <input type="date" id="sigorta" onchange="hesapla()" />
-    <div id="sigorta_kalan" class="small"></div>
-
-    <label for="seyrusefer" style="margin-top:10px">Seyrüsefer Tarihi</label>
-    <input type="date" id="seyrusefer" onchange="hesapla()" />
-    <div id="seyrusefer_kalan" class="small"></div>
-
-    <button onclick="kaydet()">💾 Kaydet</button>
-  </div>
-</body>
-</html><!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Araç Takip</title>
-  <link rel="manifest" href="manifest.json" />
-  <script>
-    // Sayfa yüklendiğinde kayıtlı verileri getir
-    window.onload = () => {
-      const fields = ['muayene','sigorta','reysusefer','seyrusefer'];
-      // support older key typo and correct one
-      const pick = ['muayene','sigorta','seyrusefer'];
-      pick.forEach(field => {
-        const value = localStorage.getItem(field);
-        if (value && document.getElementById(field)) document.getElementById(field).value = value;
-      });
-      hesapla();
-    };
-
-    // Tarih değiştiğinde veriyi kaydet
-    function kaydet() {
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const value = el ? el.value : '';
-        localStorage.setItem(field, value);
-      });
-      alert("Bilgiler kaydedildi ✅");
-      hesapla();
-    }
-
-    // Kalan günleri hesapla
-    function hesapla() {
-      const bugun = new Date();
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const span = document.getElementById(field + '_kalan');
-        if (!el || !span) return;
-        if (!el.value) { span.textContent = ''; return; }
-        const tarih = new Date(el.value + 'T00:00:00');
-        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000 * 60 * 60 * 24));
-        span.textContent = diff > 0 ? ${diff} gün kaldı : SÜRESİ DOLDU ⛔;
-      });
-    }
-  </script>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;padding:18px;background:#f5f7fb;color:#111}
-    .card{max-width:640px;margin:12px auto;background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    label{font-weight:600}
-    input{padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:6px;width:100%}
-    button{margin-top:12px;padding:10px 14px;background:#0b5fff;color:#fff;border:none;border-radius:8px;cursor:pointer}
-    .small{font-size:13px;color:#555;margin-top:6px}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>🚗 Araç Takip</h1>
-    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Veriler telefonda saklanır.</p>
-
-    <label for="muayene">Muayene Tarihi</label>
-    <input type="date" id="muayene" onchange="hesapla()" />
-    <div id="muayene_kalan" class="small"></div>
-
-    <label for="sigorta" style="margin-top:10px">Sigorta Tarihi</label>
-    <input type="date" id="sigorta" onchange="hesapla()" />
-    <div id="sigorta_kalan" class="small"></div>
-
-    <label for="seyrusefer" style="margin-top:10px">Seyrüsefer Tarihi</label>
-    <input type="date" id="seyrusefer" onchange="hesapla()" />
-    <div id="seyrusefer_kalan" class="small"></div>
-
-    <button onclick="kaydet()">💾 Kaydet</button>
-  </div>
-</body>
-</html><!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Araç Takip</title>
-  <link rel="manifest" href="manifest.json" />
-  <script>
-    // Sayfa yüklendiğinde kayıtlı verileri getir
-    window.onload = () => {
-      const fields = ['muayene','sigorta','reysusefer','seyrusefer'];
-      // support older key typo and correct one
-      const pick = ['muayene','sigorta','seyrusefer'];
-      pick.forEach(field => {
-        const value = localStorage.getItem(field);
-        if (value && document.getElementById(field)) document.getElementById(field).value = value;
-      });
-      hesapla();
-    };
-
-    // Tarih değiştiğinde veriyi kaydet
-    function kaydet() {
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const value = el ? el.value : '';
-        localStorage.setItem(field, value);
-      });
-      alert("Bilgiler kaydedildi ✅");
-      hesapla();
-    }
-
-    // Kalan günleri hesapla
-    function hesapla() {
-      const bugun = new Date();
-      const fields = ['muayene','sigorta','seyrusefer'];
-      fields.forEach(field => {
-        const el = document.getElementById(field);
-        const span = document.getElementById(field + '_kalan');
-        if (!el || !span) return;
-        if (!el.value) { span.textContent = ''; return; }
-        const tarih = new Date(el.value + 'T00:00:00');
-        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000 * 60 * 60 * 24));
-        span.textContent = diff > 0 ? ${diff} gün kaldı : SÜRESİ DOLDU ⛔;
-      });
-    }
-  </script>
-  <style>
-    body{font-family:Arial,Helvetica,sans-serif;padding:18px;background:#f5f7fb;color:#111}
-    .card{max-width:640px;margin:12px auto;background:#fff;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    label{font-weight:600}
-    input{padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:6px;width:100%}
-    button{margin-top:12px;padding:10px 14px;background:#0b5fff;color:#fff;border:none;border-radius:8px;cursor:pointer}
-    .small{font-size:13px;color:#555;margin-top:6px}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>🚗 Araç Takip</h1>
-    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Veriler telefonda saklanır.</p>
-
-    <label for="muayene">Muayene Tarihi</label>
-    <input type="date" id="muayene" onchange="hesapla()" />
-    <div id="muayene_kalan" class="small"></div>
-
-    <label for="sigorta" style="margin-top:10px">Sigorta Tarihi</label>
-    <input type="date" id="sigorta" onchange="hesapla()" />
-    <div id="sigorta_kalan" class="small"></div>
-
-    <label for="seyrusefer" style="margin-top:10px">Seyrüsefer Tarihi</label>
-    <input type="date" id="seyrusefer" onchange="hesapla()" />
-    <div id="seyrusefer_kalan" class="small"></div>
+    <button onclick="temizle('seyrusefer')">🗑️ Seyrüseferi Sil</button>
 
     <button onclick="kaydet()">💾 Kaydet</button>
   </div>
