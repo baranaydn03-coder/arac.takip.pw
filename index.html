@@ -1,127 +1,100 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Araç Takip</title>
-  <link rel="manifest" href="manifest.json">
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js');
-    }
-  </script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f5f7fb;
-      color: #333;
-    }
-    h1 {
-      text-align: center;
-    }
-    .vehicle {
-      background: #fff;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      margin-bottom: 15px;
-    }
-    label {
-      display: block;
-      margin-top: 8px;
-      font-weight: bold;
-    }
-    input {
-      width: 100%;
-      padding: 8px;
-      margin-top: 5px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-    }
-    button {
-      margin-top: 10px;
-      padding: 10px;
-      width: 100%;
-      border: none;
-      border-radius: 5px;
-      background-color: #007bff;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    button.delete {
-      background-color: #dc3545;
-    }
-    button.add {
-      background-color: #28a745;
-    }
-    .warning {
-      color: red;
-      font-weight: bold;
-      margin-top: 5px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Araç Takip</title>
+<link rel="manifest" href="manifest.json">
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+input, button { padding: 8px; margin: 5px 0; width: 100%; max-width: 400px; }
+ul { list-style-type: none; padding: 0; }
+li { margin: 10px 0; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
+</style>
 </head>
 <body>
-  <h1>🚗 Araç Takip Sistemi</h1>
+<h1>Araç Takip</h1>
 
-  <div id="vehicleList"></div>
+<h3>Yeni Araç Ekle</h3>
+<input type="text" id="aracAdi" placeholder="Araç Adı (Opsiyonel)">
+<input type="text" id="plaka" placeholder="Plaka">
+<input type="date" id="baslangicTarih" placeholder="Başlangıç Tarihi (Opsiyonel)">
+<input type="date" id="bitisTarih" placeholder="Bitiş Tarihi">
+<button id="ekleBtn">Araç Ekle</button>
 
-  <button class="add" onclick="addVehicle()">+ Yeni Araç Ekle</button>
+<h3>Araçlar</h3>
+<ul id="aracListesi"></ul>
 
-  <script>
-    const vehicleList = document.getElementById('vehicleList');
+<script>
+// Araçları localStorage'da saklamak
+let araclar = JSON.parse(localStorage.getItem('araclar')) || [];
 
-    function saveData() {
-      const vehicles = [];
-      document.querySelectorAll('.vehicle').forEach(div => {
-        vehicles.push({
-          name: div.querySelector('.name').value,
-          plate: div.querySelector('.plate').value,
-          start: div.querySelector('.start').value,
-          end: div.querySelector('.end').value
-        });
-      });
-      localStorage.setItem('vehicles', JSON.stringify(vehicles));
-      alert('Kaydedildi ✅');
+function kalanGunHesapla(bitis) {
+    const bugun = new Date();
+    const bitisTarih = new Date(bitis);
+    const fark = bitisTarih - bugun;
+    return Math.ceil(fark / (1000 * 60 * 60 * 24));
+}
+
+function guncelleListe() {
+    const list = document.getElementById('aracListesi');
+    list.innerHTML = '';
+    araclar.forEach((arac, index) => {
+        const li = document.createElement('li');
+        const kalan = arac.bitisTarih ? kalanGunHesapla(arac.bitisTarih) : 'Bitiş tarihi yok';
+        li.innerHTML = `
+            <strong>${arac.aracAdi || 'Araç'}</strong> - ${arac.plaka}<br>
+            Başlangıç: ${arac.baslangicTarih || '-'}<br>
+            Bitiş: ${arac.bitisTarih || '-'}<br>
+            Kalan Gün: ${kalan}<br>
+            <button onclick="silArac(${index})">Sil</button>
+        `;
+        list.appendChild(li);
+
+        // Bitişe yakın uyarı (3 gün veya daha az)
+        if (arac.bitisTarih && kalan <= 3 && kalan >=0) {
+            alert(${arac.aracAdi || 'Araç'} (${arac.plaka}) bitiş tarihine ${kalan} gün kaldı!);
+        }
+    });
+}
+
+function silArac(index) {
+    araclar.splice(index, 1);
+    localStorage.setItem('araclar', JSON.stringify(araclar));
+    guncelleListe();
+}
+
+document.getElementById('ekleBtn').addEventListener('click', () => {
+    const aracAdi = document.getElementById('aracAdi').value;
+    const plaka = document.getElementById('plaka').value;
+    const baslangicTarih = document.getElementById('baslangicTarih').value;
+    const bitisTarih = document.getElementById('bitisTarih').value;
+
+    if (!plaka || !bitisTarih) {
+        alert('Plaka ve bitiş tarihi zorunludur!');
+        return;
     }
 
-    function deleteVehicle(btn) {
-      btn.parentElement.remove();
-      saveData();
-    }
+    araclar.push({ aracAdi, plaka, baslangicTarih, bitisTarih });
+    localStorage.setItem('araclar', JSON.stringify(araclar));
 
-    function addVehicle(data = {}) {
-      const div = document.createElement('div');
-      div.className = 'vehicle';
-      div.innerHTML = `
-        <label>Araç Adı:</label>
-        <input type="text" class="name" value="${data.name || ''}">
-        <label>Plaka:</label>
-        <input type="text" class="plate" value="${data.plate || ''}">
-        <label>Başlangıç Tarihi:</label>
-        <input type="date" class="start" value="${data.start || ''}">
-        <label>Bitiş Tarihi:</label>
-        <input type="date" class="end" value="${data.end || ''}">
-        <div class="remaining"></div>
-        <button onclick="saveData()">Kaydet</button>
-        <button class="delete" onclick="deleteVehicle(this)">Sil</button>
-      `;
-      vehicleList.appendChild(div);
-    }
+    document.getElementById('aracAdi').value = '';
+    document.getElementById('plaka').value = '';
+    document.getElementById('baslangicTarih').value = '';
+    document.getElementById('bitisTarih').value = '';
 
-    function loadData() {
-      const data = JSON.parse(localStorage.getItem('vehicles') || '[]');
-      data.forEach(addVehicle);
-      checkReminders();
-    }
+    guncelleListe();
+});
 
-    function checkReminders() {
-      document.querySelectorAll('.vehicle').forEach(div => {
-        const endDate = div.querySelector('.end').value;
-        const remainingDiv = div.querySelector('.remaining');
-        if (endDate) {
-          const today = new Date();
-          const end = new Date(endDate);
-          const
+// Başlangıçta listeyi göster
+guncelleListe();
+
+// Service Worker kayıt
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log('Service Worker kayıtlı'))
+        .catch(err => console.log('Service Worker hatası:', err));
+}
+</script>
+</body>
+</html>
