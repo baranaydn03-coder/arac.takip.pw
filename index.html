@@ -7,130 +7,121 @@
   <link rel="manifest" href="manifest.json">
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js')
-      .then(() => console.log('Service Worker kayıtlı'))
-      .catch(err => console.log('Service Worker hatası:', err));
-    }
-
-    function izinIste() {
-      if ('Notification' in window && Notification.permission !== 'granted') {
-        Notification.requestPermission().then(permission => {
-          console.log('İzin durumu:', permission);
-        });
-      }
-    }
-
-    window.onload = () => {
-      izinIste();
-      ['muayene','sigorta','seyrusefer'].forEach(field => {
-        const value = localStorage.getItem(field);
-        if (value) document.getElementById(field).value = value;
-      });
-      hesapla();
-    };
-
-    function kaydet() {
-      ['muayene','sigorta','seyrusefer'].forEach(field => {
-        const value = document.getElementById(field).value;
-        localStorage.setItem(field, value);
-      });
-      alert("Bilgiler kaydedildi ✅");
-      hesapla();
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage('kontrolEt');
-      }
-    }
-
-    function temizle(field) {
-      localStorage.removeItem(field);
-      document.getElementById(field).value = '';
-      document.getElementById(field + '_kalan').textContent = '';
-      alert(field + " silindi ✅");
-    }
-
-    function hesapla() {
-      const bugun = new Date();
-      ['muayene','sigorta','seyrusefer'].forEach(field => {
-        const el = document.getElementById(field);
-        const span = document.getElementById(field + '_kalan');
-        if (!el || !span) return;
-        if (!el.value) { span.textContent = ''; return; }
-        const tarih = new Date(el.value + 'T00:00:00');
-        const diff = Math.ceil((tarih - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000*60*60*24));
-        span.textContent = diff > 0 ? ${diff} gün kaldı : SÜRESİ DOLDU ⛔;
-      });
+      navigator.serviceWorker.register('service-worker.js');
     }
   </script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      padding: 20px;
+      margin: 20px;
       background: #f5f7fb;
-      color: #111;
+      color: #333;
     }
-    .card {
-      max-width: 600px;
-      margin: auto;
+    h1 {
+      text-align: center;
+    }
+    .vehicle {
       background: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 15px;
     }
     label {
-      font-weight: 600;
-      margin-top: 10px;
       display: block;
+      margin-top: 8px;
+      font-weight: bold;
     }
     input {
       width: 100%;
       padding: 8px;
-      margin-top: 6px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
+      margin-top: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
     }
     button {
-      display: block;
+      margin-top: 10px;
+      padding: 10px;
       width: 100%;
-      margin-top: 12px;
-      padding: 14px;
-      font-size: 16px;
-      background: #0b5fff;
-      color: #fff;
       border: none;
-      border-radius: 8px;
+      border-radius: 5px;
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
       cursor: pointer;
     }
-    button:active {
-      background: #0945c1;
+    button.delete {
+      background-color: #dc3545;
     }
-    .small {
-      font-size: 13px;
-      color: #555;
-      margin-top: 6px;
+    button.add {
+      background-color: #28a745;
+    }
+    .warning {
+      color: red;
+      font-weight: bold;
+      margin-top: 5px;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>🚗 Araç Takip</h1>
-    <p class="small">Muayene, sigorta ve seyrüsefer tarihlerini girip kaydet. Bildirim alabilirsin.</p>
+  <h1>🚗 Araç Takip Sistemi</h1>
 
-    <label for="muayene">Muayene Tarihi</label>
-    <input type="date" id="muayene" onchange="hesapla()">
-    <div id="muayene_kalan" class="small"></div>
-    <button onclick="temizle('muayene')">🗑️ Muayeneyi Sil</button>
+  <div id="vehicleList"></div>
 
-    <label for="sigorta">Sigorta Tarihi</label>
-    <input type="date" id="sigorta" onchange="hesapla()">
-    <div id="sigorta_kalan" class="small"></div>
-    <button onclick="temizle('sigorta')">🗑️ Sigortayı Sil</button>
+  <button class="add" onclick="addVehicle()">+ Yeni Araç Ekle</button>
 
-    <label for="seyrusefer">Seyrüsefer Tarihi</label>
-    <input type="date" id="seyrusefer" onchange="hesapla()">
-    <div id="seyrusefer_kalan" class="small"></div>
-    <button onclick="temizle('seyrusefer')">🗑️ Seyrüseferi Sil</button>
+  <script>
+    const vehicleList = document.getElementById('vehicleList');
 
-    <button onclick="kaydet()">💾 Kaydet</button>
-  </div>
-</body>
-</html>
+    function saveData() {
+      const vehicles = [];
+      document.querySelectorAll('.vehicle').forEach(div => {
+        vehicles.push({
+          name: div.querySelector('.name').value,
+          plate: div.querySelector('.plate').value,
+          start: div.querySelector('.start').value,
+          end: div.querySelector('.end').value
+        });
+      });
+      localStorage.setItem('vehicles', JSON.stringify(vehicles));
+      alert('Kaydedildi ✅');
+    }
+
+    function deleteVehicle(btn) {
+      btn.parentElement.remove();
+      saveData();
+    }
+
+    function addVehicle(data = {}) {
+      const div = document.createElement('div');
+      div.className = 'vehicle';
+      div.innerHTML = `
+        <label>Araç Adı:</label>
+        <input type="text" class="name" value="${data.name || ''}">
+        <label>Plaka:</label>
+        <input type="text" class="plate" value="${data.plate || ''}">
+        <label>Başlangıç Tarihi:</label>
+        <input type="date" class="start" value="${data.start || ''}">
+        <label>Bitiş Tarihi:</label>
+        <input type="date" class="end" value="${data.end || ''}">
+        <div class="remaining"></div>
+        <button onclick="saveData()">Kaydet</button>
+        <button class="delete" onclick="deleteVehicle(this)">Sil</button>
+      `;
+      vehicleList.appendChild(div);
+    }
+
+    function loadData() {
+      const data = JSON.parse(localStorage.getItem('vehicles') || '[]');
+      data.forEach(addVehicle);
+      checkReminders();
+    }
+
+    function checkReminders() {
+      document.querySelectorAll('.vehicle').forEach(div => {
+        const endDate = div.querySelector('.end').value;
+        const remainingDiv = div.querySelector('.remaining');
+        if (endDate) {
+          const today = new Date();
+          const end = new Date(endDate);
+          const
