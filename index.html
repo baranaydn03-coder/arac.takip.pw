@@ -1,97 +1,89 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Araç Takip</title>
-<style>
-body { font-family: Arial, sans-serif; padding: 20px; background:#f4f4f4; }
-h1 { text-align:center; }
-input, button { padding: 10px; margin: 5px; }
-#aracListesi { margin-top:20px; }
-.arac { background:#fff; padding:10px; margin-bottom:10px; border-radius:5px; }
-.kalan { font-weight:bold; color:green; }
-.uyari { color:red; font-weight:bold; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Araç Takip</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body{font-family:Arial,sans-serif;padding:20px;background:#f5f7fb;color:#111;}
+    h1{text-align:center;}
+    .card{background:#fff;padding:15px;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 12px rgba(0,0,0,0.06);}
+    label{display:block;margin-top:10px;font-weight:600;}
+    input{width:100%;padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:4px;}
+    button{width:100%;padding:12px;margin-top:12px;font-size:16px;background:#0b5fff;color:#fff;border:none;border-radius:6px;cursor:pointer;}
+    button.delete{background:#dc3545;}
+    .small{font-size:13px;color:#555;margin-top:6px;}
+    .warning{color:#d9534f;font-weight:bold;}
+  </style>
 </head>
 <body>
-<h1>Araç Takip</h1>
-
-<div>
-<input type="text" id="aracAdi" placeholder="Araç Adı">
-<input type="text" id="plaka" placeholder="Plaka">
-<input type="date" id="baslangic">
-<input type="date" id="bitis">
-<button onclick="ekleArac()">Araç Ekle</button>
-</div>
-
-<div id="aracListesi"></div>
-
-<script>
-let araclar = [];
-
-function ekleArac() {
-    const adi = document.getElementById('aracAdi').value;
-    const plaka = document.getElementById('plaka').value;
-    const bas = document.getElementById('baslangic').value;
-    const bit = document.getElementById('bitis').value;
-
-    if(!adi || !plaka || !bit){ alert("Araç adı, plaka ve bitiş tarihi gerekli!"); return; }
-
-    const arac = { adi, plaka, bas, bit };
-    araclar.push(arac);
-    localStorage.setItem('araclar', JSON.stringify(araclar));
-    goster();
-    temizle();
-}
-
-function temizle() {
-    document.getElementById('aracAdi').value = '';
-    document.getElementById('plaka').value = '';
-    document.getElementById('baslangic').value = '';
-    document.getElementById('bitis').value = '';
-}
-
-function goster() {
-    const liste = document.getElementById('aracListesi');
-    liste.innerHTML = '';
-    araclar.forEach((a, i) => {
-        const bitisTarih = new Date(a.bitis);
-        const bugun = new Date();
-        const fark = Math.ceil((bitisTarih - bugun)/(1000*60*60*24));
-        const kalanHTML = fark>=0 ? <span class="kalan">${fark} gün kaldı</span> : <span class="uyari">Süresi doldu!</span>;
-        
+  <h1>🚗 Araç Takip</h1>
+  <div>
+    <button onclick="yeniArac()">➕ Yeni Araç Ekle</button>
+  </div>
+  <div id="app"></div>
+  <script>
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('service-worker.js')
+        .then(()=>console.log('Service Worker kayıtlı'))
+        .catch(err=>console.log('Service Worker hatası:',err));
+    }
+    const STORAGE_KEY = 'arac_takip_list';
+    let araclar = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    function kaydetListe(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(araclar));
+    }
+    function kalanGun(bitis){
+      const bugun = new Date();
+      const bitT = new Date(bitis + 'T00:00:00');
+      const diff = Math.ceil((bitT - new Date(bugun.getFullYear(),bugun.getMonth(),bugun.getDate())) / (1000*60*60*24));
+      return diff;
+    }
+    function goster(){
+      const app = document.getElementById('app');
+      app.innerHTML = '';
+      araclar.forEach((arac,i)=>{
+        const diff = arac.bitis ? kalanGun(arac.bitis) : null;
         const div = document.createElement('div');
-        div.className = 'arac';
-        div.innerHTML = <strong>${a.adi} (${a.plaka})</strong><br>Bitiş: ${a.bitis}<br>${kalanHTML}<br><button onclick="sil(${i})">Sil</button>;
-        liste.appendChild(div);
-
-        // Bildirim (uyarı)
-        if(fark <=3 && fark>=0){
-            if(Notification.permission === "granted") {
-                new Notification(${a.adi} (${a.plaka}) süresi ${fark} gün kaldı!);
-            }
+        div.className = 'card';
+        div.innerHTML = `
+          <label>Araç Adı</label>
+          <input type="text" value="${arac.adi}" onchange="degistir(${i},'adi',this.value)">
+          <label>Plaka</label>
+          <input type="text" value="${arac.plaka}" onchange="degistir(${i},'plaka',this.value)">
+          <label>Başlangıç Tarihi (opsiyonel)</label>
+          <input type="date" value="${arac.bas}" onchange="degistir(${i},'bas',this.value)">
+          <label>Bitiş Tarihi</label>
+          <input type="date" value="${arac.bitis}" onchange="degistir(${i},'bitis',this.value)">
+          <div class="small">${arac.bitis ? (diff>=0 ? diff + ' gün kaldı' : 'SÜRESİ DOLDU ⛔') : ''} ${diff!==null && diff<=3 && diff>=0 ? '<span class="warning">⚠️ Yaklaşıyor!</span>' : ''}</div>
+          <button class="delete" onclick="sil(${i})">🗑️ Sil</button>
+        `;
+        app.appendChild(div);
+        if(diff!==null && diff<=3 && diff>=0 && Notification.permission==='granted'){
+          new Notification(${arac.adi || 'Araç'} (${arac.plaka || '-'}) bitişine ${diff} gün kaldı!);
         }
+      });
+      kaydetListe();
+    }
+    function degistir(index, alan, deger){
+      araclar[index][alan] = deger;
+      goster();
+    }
+    function sil(index){
+      araclar.splice(index,1);
+      goster();
+    }
+    function yeniArac(){
+      araclar.push({adi:'',plaka:'',bas:'',bitis:''});
+      goster();
+    }
+    document.addEventListener('DOMContentLoaded',()=>{
+      if(Notification.permission!=='granted'){
+        Notification.requestPermission();
+      }
+      goster();
     });
-}
-
-function sil(index){
-    araclar.splice(index,1);
-    localStorage.setItem('araclar', JSON.stringify(araclar));
-    goster();
-}
-
-// LocalStorage'dan yükle
-if(localStorage.getItem('araclar')){
-    araclar = JSON.parse(localStorage.getItem('araclar'));
-    goster();
-}
-
-// Bildirim izni
-if(Notification.permission !== "granted"){
-    Notification.requestPermission();
-}
-
-</script>
+  </script>
 </body>
 </html>
